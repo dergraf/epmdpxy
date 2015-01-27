@@ -1,0 +1,15 @@
+{application, epmdpxy,
+ [
+  {description, ""},
+  {vsn, "1"},
+  {registered, []},
+  {applications, [
+                  kernel,
+                  stdlib,
+                  ranch
+                 ]},
+  {mod, { epmdpxy_app, []}},
+  {env, [
+        {port, 43690}
+    ]}
+ ]}.
