@@ -6,7 +6,8 @@
 -export([start_link/2,
          accept/1,
          cut_cable/1,
-         fix_cable/1]).
+         fix_cable/1,
+         status/1]).
 
 %% gen_server callbacks
 -export([init/1,
@@ -16,13 +17,16 @@
          terminate/2,
          code_change/3]).
 
--record(state, {status=ok,
+-record(state, {status=not_ready,
                 downstream_name,
                 upstream_name,
                 upstream_port,
                 listen_socket,
                 downstream_socket,
-                upstream_socket}).
+                upstream_socket,
+                tref}).
+
+-define(CLOSE_AFTER, 120000). %% should be larger than netsplit time
 
 %%%===================================================================
 %%% API
@@ -46,6 +50,9 @@ cut_cable(Pid) ->
 
 fix_cable(Pid) ->
     gen_server:call(Pid, fix_cable).
+
+status(Pid) ->
+    gen_server:call(Pid, status).
 
 
 %%%===================================================================
@@ -98,7 +105,15 @@ handle_call(fix_cable, _From, #state{downstream_socket=S,
                                      upstream_socket=UpS} = State) ->
     inet:setopts(S, [{active, true}]),
     inet:setopts(UpS, [{active, true}]),
-    {reply, ok, State#state{status=ok}};
+    {reply, ok, State#state{status=ready}};
+handle_call(status, _From, State) ->
+    #state{status=Status,
+           downstream_name=DownName,
+           upstream_name=UpName} = State,
+    {reply, [{pid, self()},
+             {downstream, DownName},
+             {upstream, UpName},
+             {status, Status}], State};
 handle_call(_Request, _From, State) ->
     Reply = ok,
     {reply, Reply, State}.
@@ -126,28 +141,42 @@ handle_cast(_Msg, State) ->
 %%                                   {stop, Reason, State}
 %% @end
 %%--------------------------------------------------------------------
-handle_info({tcp, S, Data}, #state{downstream_name=Name,
-                                   downstream_socket=S,
-                                   upstream_name=UpName} = State) ->
-    NewState =
-    case Name of
+handle_info({tcp, DownSocket, Data}, #state{downstream_name=undefined,
+                                            downstream_socket=DownSocket,
+                                            upstream_name=UpName} = State) ->
+    case parse_name(UpName, Data) of
         undefined ->
-            State#state{downstream_name=parse_name(UpName, Data)};
-        _ ->
-            State
-    end,
-    case maybe_connect(NewState) of
-        {ok, #state{upstream_socket=UpS} = NewNewState} ->
-            gen_tcp:send(UpS, Data),
-            {noreply, NewNewState};
-        {error, Reason} ->
-            gen_tcp:close(S),
-            {stop, Reason, NewState}
+            {stop, invalid_data, State};
+        {DownstreamName, IsActive} ->
+            case maybe_connect(State) of
+                {ok, #state{upstream_socket=UpSocket} = NewState} ->
+                    inet:setopts(DownSocket, [{active, IsActive}]),
+                    inet:setopts(UpSocket, [{active, IsActive}]),
+                    gen_tcp:send(UpSocket, Data),
+                    {noreply, NewState#state{
+                                downstream_name=DownstreamName,
+                                status=case IsActive of true -> ready; _ -> cut end,
+                                tref=erlang:send_after(?CLOSE_AFTER, self(), die)
+                               }};
+                {error, Reason} ->
+                    gen_tcp:close(DownSocket),
+                    {stop, Reason, State}
+            end
     end;
-handle_info({tcp, UpS, Data}, #state{downstream_socket=S,
-                                     upstream_socket=UpS} = State) ->
-    gen_tcp:send(S, Data),
-    {noreply, State};
+handle_info(die, State) ->
+    {stop, normal, State};
+handle_info({tcp, DownS, Data}, #state{downstream_socket=DownS,
+                                       upstream_socket=UpS,
+                                       tref=TRef} = State) ->
+    erlang:cancel_timer(TRef),
+    gen_tcp:send(UpS, Data),
+    {noreply, State#state{tref=erlang:send_after(?CLOSE_AFTER, self(), die)}};
+handle_info({tcp, UpS, Data}, #state{downstream_socket=DownS,
+                                     upstream_socket=UpS,
+                                     tref=TRef} = State) ->
+    erlang:cancel_timer(TRef),
+    gen_tcp:send(DownS, Data),
+    {noreply, State#state{tref=erlang:send_after(?CLOSE_AFTER, self(), die)}};
 handle_info({tcp_closed, _}, State) ->
     {stop, normal, State};
 handle_info({tcp_error, _, Error}, State) ->
@@ -168,7 +197,8 @@ handle_info({tcp_error, _, Error}, State) ->
 %%--------------------------------------------------------------------
 terminate(_Reason, #state{upstream_name=UpstreamName,
                           downstream_name=DownstreamName}) ->
-    epmdpxy_session_sup:connection_deleted(DownstreamName, UpstreamName),
+    epmdpxy_session_sup:connection_deleted(self(), DownstreamName,
+                                           UpstreamName),
     ok.
 
 %%--------------------------------------------------------------------
@@ -198,6 +228,7 @@ maybe_connect(State) ->
 parse_name(UpstreamName, <<_Len:16, "n", _Version:16, _Flags:32,
                            DownstreamName/binary>>) ->
     process_flag(trap_exit, true),
-    epmdpxy_session_sup:connection_created(self(), DownstreamName, UpstreamName),
-    DownstreamName;
+    Active = epmdpxy_session_sup:connection_created(self(), DownstreamName,
+                                                    UpstreamName),
+    {DownstreamName, Active};
 parse_name(_, _) -> undefined.

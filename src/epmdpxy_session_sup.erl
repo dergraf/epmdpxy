@@ -6,15 +6,14 @@
 -export([start_link/0,
          start_session/2,
          connection_created/3,
-         connection_deleted/2,
-         cut_cables/2,
-         fix_cables/2]).
+         connection_deleted/3,
+         status/0]).
 
 %% Supervisor callbacks
 -export([init/1]).
 
 -define(CHILD(Id, Mod, Type, Args), {Id, {Mod, start_link, Args},
-                                     permanent, 5000, Type, [Mod]}).
+                                     temporary, 5000, Type, [Mod]}).
 
 %%%===================================================================
 %%% API functions
@@ -30,36 +29,20 @@
 start_link() ->
     supervisor:start_link({local, ?MODULE}, ?MODULE, []).
 
-start_session(Name, Port) ->
-    {ok, Pid} = supervisor:start_child(?MODULE, [Name, Port]),
+start_session(UpstreamNode, Port) ->
+    {ok, Pid} = supervisor:start_child(?MODULE, [UpstreamNode, Port]),
     ProxyPort = epmdpxy_session:accept(Pid),
     ProxyPort.
 
 connection_created(SessionPid, DownstreamNode, UpstreamNode) ->
-    ets:insert(?MODULE, {{DownstreamNode, UpstreamNode}, SessionPid}).
+    epmdpxy_splitter:add_cable(DownstreamNode, UpstreamNode, SessionPid).
 
-connection_deleted(DownstreamNode, UpstreamNode) ->
-    ets:match_delete(?MODULE, {DownstreamNode, UpstreamNode}).
+connection_deleted(SessionPid, DownstreamNode, UpstreamNode) ->
+    epmdpxy_splitter:delete_cable(DownstreamNode, UpstreamNode, SessionPid).
 
-cut_cables(DownstreamNodes, UpstreamNodes) ->
-    map_cables(true, DownstreamNodes, UpstreamNodes).
-
-fix_cables(DownstreamNodes, UpstreamNodes) ->
-    map_cables(false, DownstreamNodes, UpstreamNodes).
-
-map_cables(Cut, [DownStreamNode|DownstreamNodes], UpstreamNodes) ->
-    lists:foreach(
-      fun(N) ->
-              case ets:lookup(?MODULE, {DownStreamNode, N}) of
-                  [] -> ok;
-                  [{_, SessionPid}] when Cut ->
-                      epmdpxy_session:cut_cable(SessionPid);
-                  [{_, SessionPid}] ->
-                      epmdpxy_session:fix_cable(SessionPid)
-              end
-      end, UpstreamNodes),
-    map_cables(Cut, DownstreamNodes, UpstreamNodes);
-map_cables(_, [], _) -> ok.
+status() ->
+    [epmdpxy_session:status(Pid)
+     || {_, Pid, _, _} <- supervisor:which_children(?MODULE), is_pid(Pid)].
 
 %%%===================================================================
 %%% Supervisor callbacks
@@ -79,8 +62,8 @@ map_cables(_, [], _) -> ok.
 %% @end
 %%--------------------------------------------------------------------
 init([]) ->
-    ets:new(?MODULE, [named_table, public]),
-    {ok, {{simple_one_for_one, 0, 1}, [?CHILD(epmdpxy_session, epmdpxy_session, worker, [])]}}.
+    {ok, {{simple_one_for_one, 0, 5},
+          [?CHILD(epmdpxy_session, epmdpxy_session, worker, [])]}}.
 
 %%%===================================================================
 %%% Internal functions

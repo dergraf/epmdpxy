@@ -51,7 +51,7 @@ parse_req(Transport, Socket, <<?ALIVE2_REQ:8, PortNo:16, NodeType:8, Protocol:8,
                                HighestVersion:16, LowestVersion:16, NLen:16,
                                Rest/binary>>) ->
     <<NodeName:NLen/binary, _:16, Extra/binary>> = Rest,
-    case epmdpxy:register_node(PortNo, NodeType, Protocol, HighestVersion,
+    case epmdpxy_reg:register_node(PortNo, NodeType, Protocol, HighestVersion,
                             LowestVersion, NodeName, Extra) of
         ok ->
             Transport:send(Socket, <<?ALIVE2_RESP, ?OK, 0, 2>>),
@@ -61,7 +61,7 @@ parse_req(Transport, Socket, <<?ALIVE2_REQ:8, PortNo:16, NodeType:8, Protocol:8,
             stop
     end;
 parse_req(Transport, Socket, <<?PORT_PLEASE2_REQ:8, NodeName/binary>>) ->
-    case epmdpxy:get_node(NodeName) of
+    case epmdpxy_reg:get_node(NodeName) of
         {ok, #node{node_type=NodeType,
                    proxy_port_no=ProxyPortNo,
                    protocol=Protocol,
@@ -87,7 +87,7 @@ parse_req(Transport, Socket, <<?NAMES_REQ:8>>) ->
     {ok, EpmdPort} = application:get_env(epmdpxy, port),
     Acc = [<<EpmdPort:32>>],
     Res =
-    epmdpxy:fold(
+    epmdpxy_reg:fold(
       fun(#node{node_name=NodeName, port_no=Port}, Buffer) ->
               S = io_lib:format("name ~ts at port ~p~n", [NodeName, Port]),
               [S|Buffer]
