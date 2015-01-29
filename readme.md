@@ -1,4 +1,4 @@
-# EPMDPXY - A Proxy for the Erlang Port Mapper Deamon
+# EPMDPXY - A Proxy for the Erlang Port Mapper Deamon [![Build Status](https://travis-ci.org/dergraf/epmdpxy.svg)](https://travis-ci.org/dergraf/epmdpxy)
 
 EPMDPXY simulates the basic functionality of EPMD, just enough to make a local Erlang cluster work. With one exception though, instead of replying the listener port when handling <code>PORT_PLEASE2_REQ</code>, it spawns an internal listener and replies the new (random) port number instead. The newly spawned listener process accepts one single connection and connects to the 'real' listener port of the remote node, acting as a proxy between the two Erlang nodes.
 
