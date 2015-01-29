@@ -14,6 +14,8 @@ run_test_() ->
      {setup,
       fun() ->
               epmdpxy:start(epmdpxy_test, epmd_port()),
+              timer:sleep(1000),
+              io:format(user, "Started EPMDPXY on node ~p with EPMD port ~p~n",  [node(), epmd_port()]),
               net_kernel:set_net_ticktime(?NET_TICK_TIME, ?NET_TICK_TIME),
               Hosts = hosts(),
               Ns = start_slaves(Hosts),
