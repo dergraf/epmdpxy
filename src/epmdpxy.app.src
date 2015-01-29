@@ -1,13 +1,11 @@
 {application, epmdpxy,
  [
-  {description, ""},
-  {vsn, "1"},
+  {description, "A Proxy for the Erlang Port Mapper Deamon"},
+  {vsn, "0.0.1"},
   {registered, []},
   {applications, [
                   kernel,
-                  stdlib,
-                  sasl,
-                  ranch
+                  stdlib
                  ]},
   {mod, { epmdpxy_app, []}},
   {env, [

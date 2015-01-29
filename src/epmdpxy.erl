@@ -5,12 +5,19 @@
          cut_cables/2,
          fix_cables/2]).
 
--define(DEFAULT_EPMD_PORT, 4369).
-
 start() ->
-    start(?DEFAULT_EPMD_PORT).
+    EPMD_PORT =
+    case os:getenv("ERL_EPMD_PORT") of
+        false ->
+            {ok, DefaultPort} = application:get_env(epmdpxy, port),
+            DefaultPort;
+        StrPort ->
+            list_to_integer(StrPort)
+    end,
+    start(EPMD_PORT).
 
 start(EPMD_PORT) ->
+    application:load(epmdpxy),
     application:set_env(epmdpxy, port, EPMD_PORT),
     application:ensure_all_started(epmdpxy).
 
