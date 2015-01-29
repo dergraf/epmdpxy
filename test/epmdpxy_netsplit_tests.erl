@@ -115,12 +115,6 @@ call_proxy(N, M, F, A) ->
     end.
 
 start_slaves(Ns) ->
-    %% travis ci complains about ssh not being started,
-    %% ssh isn't necessary here since we stay on one
-    %% local machine.. maybe a bug
-    {ok, Apps} = application:ensure_all_started(ssh),
-    true = lists:member(ssh, Apps),
-    %% start the slaves
     Nodes = [start_slave(N) || N <- Ns],
     Nodes.
 
@@ -164,8 +158,8 @@ paths() ->
     {Pas, Pzs}.
 
 host() ->
-    [_Name, Host] = re:split(atom_to_list(node()), "@", [{return, list}]),
-    list_to_atom(Host).
+    {ok, HostName} = inet:gethostname(),
+    list_to_atom(HostName).
 
 epmd_port() ->
     {ok, [[StrEPMD_PORT]]} = init:get_argument(epmd_port),
