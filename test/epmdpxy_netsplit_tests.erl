@@ -115,6 +115,12 @@ call_proxy(N, M, F, A) ->
     end.
 
 start_slaves(Ns) ->
+    %% travis ci complains about ssh not being started,
+    %% ssh isn't necessary here since we stay on one
+    %% local machine.. maybe a bug
+    {ok, Apps} = application:ensure_all_started(ssh),
+    true = lists:member(ssh, Apps),
+    %% start the slaves
     Nodes = [start_slave(N) || N <- Ns],
     Nodes.
 
