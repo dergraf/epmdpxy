@@ -1,10 +1,17 @@
 -module(epmdpxy).
 -export([start/0,
+         start/1,
          status/0,
          cut_cables/2,
          fix_cables/2]).
 
+-define(DEFAULT_EPMD_PORT, 4369).
+
 start() ->
+    start(?DEFAULT_EPMD_PORT).
+
+start(EPMD_PORT) ->
+    application:set_env(epmdpxy, port, EPMD_PORT),
     application:ensure_all_started(epmdpxy).
 
 status() ->

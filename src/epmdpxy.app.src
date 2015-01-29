@@ -11,6 +11,6 @@
                  ]},
   {mod, { epmdpxy_app, []}},
   {env, [
-        {port, 43690}
+        {port, 4369}
     ]}
  ]}.
