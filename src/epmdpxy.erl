@@ -1,6 +1,7 @@
 -module(epmdpxy).
 -export([start/0,
          start/1,
+         start/2,
          status/0,
          cut_cables/2,
          fix_cables/2]).
@@ -20,6 +21,18 @@ start(EPMD_PORT) ->
     application:load(epmdpxy),
     application:set_env(epmdpxy, port, EPMD_PORT),
     application:ensure_all_started(epmdpxy).
+
+start(NodeName, EPMD_PORT) when is_atom(NodeName) and is_integer(EPMD_PORT) ->
+    start(EPMD_PORT),
+    os:putenv("ERL_EPMD_PORT", integer_to_list(EPMD_PORT)),
+    NodeNameType =
+    case re:split(atom_to_list(NodeName), "@") of
+        [_] -> shortnames;
+        [_,_] -> longnames
+    end,
+    {ok, _} = net_kernel:start([NodeName, NodeNameType]),
+    ok.
+
 
 status() ->
     epmdpxy_session_sup:status().
