@@ -1,9 +1,9 @@
 -module(epmdpxy_netsplit_tests).
--compile(export_all).
+-export([start_node/0,
+         proxy/0]).
 -include_lib("eunit/include/eunit.hrl").
 
 -define(NR_OF_NODES, 5).
--define(EPMD_PORT, 43690).
 -define(NET_TICK_TIME, 5). % 5 seconds
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -13,7 +13,7 @@ run_test_() ->
     {timeout, ?NET_TICK_TIME * 3,
      {setup,
       fun() ->
-              epmdpxy:start(epmdpxy_test, ?EPMD_PORT),
+              epmdpxy:start(epmdpxy_test, epmd_port()),
               net_kernel:set_net_ticktime(?NET_TICK_TIME, ?NET_TICK_TIME),
               Hosts = hosts(),
               Ns = start_slaves(Hosts),
@@ -99,9 +99,9 @@ proxy_loop() ->
     end,
     proxy_loop().
 
-proxy_multicall(Ns, M, F, A) ->
-    [call_proxy(N, M, F, A) || N <- Ns].
-
+%proxy_multicall(Ns, M, F, A) ->
+%    [call_proxy(N, M, F, A) || N <- Ns].
+%
 call_proxy(N, M, F, A) ->
     Ref = erlang:monitor(process, {?PROXY, N}),
     {?PROXY, N} ! {self(), Ref, apply, M, F, A},
@@ -161,3 +161,6 @@ host() ->
     [_Name, Host] = re:split(atom_to_list(node()), "@", [{return, list}]),
     list_to_atom(Host).
 
+epmd_port() ->
+    {ok, [[StrEPMD_PORT]]} = init:get_argument(epmd_port),
+    list_to_integer(StrEPMD_PORT).
