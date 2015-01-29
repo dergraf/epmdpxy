@@ -50,3 +50,4 @@ epmdpxy:fix_cables([node1, node2], [node3, node4, node5]).
 
 - it's pretty alpha.. 
 - we'll be using it at Erlio GmbH, so it will eventually mature
+- of course this is not a replacement for real hardware damage
