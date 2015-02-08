@@ -26,7 +26,7 @@ start(NodeName, EPMD_PORT) when is_atom(NodeName) and is_integer(EPMD_PORT) ->
     %% be sure that you either started the vm with erl -epmd_prot EPMD_PORT
     %% or you have exported the enviroment variable ERL_EPMD_PORT
     StrEPMD_PORT = integer_to_list(EPMD_PORT),
-    {ok, [[StrEPMD_PORT]]} = init:get_argument(epmd_port),
+    {ok, [[StrEPMD_PORT]|_]} = init:get_argument(epmd_port),
     start(EPMD_PORT),
     NodeNameType =
     case re:split(atom_to_list(NodeName), "@") of
