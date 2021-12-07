@@ -225,10 +225,20 @@ maybe_connect(#state{upstream_port=Port, upstream_socket=undefined} = State) ->
 maybe_connect(State) ->
     {ok, State}.
 
-parse_name(UpstreamName, <<_Len:16, "n", _Version:16, _Flags:32,
-                           DownstreamName/binary>>) ->
-    process_flag(trap_exit, true),
-    Active = epmdpxy_session_sup:connection_created(self(), DownstreamName,
-                                                    UpstreamName),
-    {DownstreamName, Active};
-parse_name(_, _) -> undefined.
+parse_name(UpstreamName, Data) ->
+  case parse_name(Data) of
+    undefined ->
+      undefined;
+    DownstreamName ->
+      process_flag(trap_exit, true),
+      Active = epmdpxy_session_sup:connection_created(self(), DownstreamName,
+                                                      UpstreamName),
+      {DownstreamName, Active}
+  end.
+
+parse_name(<<_Len:16, "n", _Version:16, _Flags:32, DownstreamName/binary>>) ->
+  DownstreamName;
+parse_name(<<_Len:16, "N", _Flags:64, _Creation:32, _NLen:16, DownstreamName/binary>>) ->
+  DownstreamName;
+parse_name(_) ->
+  undefined.
